@@ -8,22 +8,59 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
+
+from test import test2
+
+size = 500
 
 
 # 数据集来源: https://plg.uwaterloo.ca/~gvcormac/treccorpus06/about.html
-def load_email(path):
-    '''
-    获取数据
-    :return: 文本数据，对应的labels
-    '''
-    maildf = pd.read_csv(path, header=None,
-                         names=['Sender', 'Receiver', '“CarbonCopy', 'Subject', 'Date', 'Body', 'isSpam'])
-    filteredmaildf = maildf[maildf['Body'].notnull()]
-    corpus = filteredmaildf['Body']
+# def load_email(path):
+#     maildf = pd.read_csv(path, header=None,
+#                          names=['Sender', 'Receiver', 'CarbonCopy', 'Subject', 'Date', 'Body', 'isSpam'])
+#
+#     filteredmaildf = maildf[maildf['Body'].notnull()]
+#     corpus = filteredmaildf['Body']
+#     labels = filteredmaildf['isSpam']
+#
+#     corpus = list(corpus)[:size]
+#     labels = list(labels)[:size]
+#     return corpus, labels
+def load_email(paths, size=None):
+    """
+    Load email data from two CSV files and return a corpus of emails and their spam labels.
 
+    Args:
+    - paths (tuple): A tuple containing paths to the two CSV files.
+    - size (int, optional): The number of emails to load. If None, all emails are loaded.
+
+    Returns:
+    - tuple: A tuple containing the email corpus and their labels.
+    """
+
+    dfs = []  # list to hold dataframes from both CSVs
+
+    for path in paths:
+        maildf = pd.read_csv(path, header=None,
+                             names=['Sender', 'Receiver', 'CarbonCopy', 'Subject', 'Date', 'Body', 'isSpam'])
+        dfs.append(maildf)
+
+    # Concatenate data from both CSV files
+    combined_df = pd.concat(dfs, axis=0).reset_index(drop=True)
+
+    # Filter rows where 'Body' column is not null
+    filteredmaildf = combined_df[combined_df['Body'].notnull()]
+
+    # Prepare corpus and labels
+    corpus = filteredmaildf['Body']
     labels = filteredmaildf['isSpam']
-    corpus = list(corpus)[:100]
-    labels = list(labels)[:100]
+
+    # If size is specified, slice the corpus and labels
+    if size is not None:
+        corpus = list(corpus)[:size]
+        labels = list(labels)[:size]
+
     return corpus, labels
 
 
@@ -62,12 +99,9 @@ def normalize_corpus(corpus, tokenize=False):
 
 
 def bow_extractor(corpus, ngram_range=(1, 1)):
-    vectorizer = CountVectorizer(min_df=1, ngram_range=ngram_range)
-    features = vectorizer.fit_transform(corpus)
-    return vectorizer, features
-
-
-from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
+    vectorized = CountVectorizer(min_df=1, ngram_range=ngram_range)
+    features = vectorized.fit_transform(corpus)
+    return vectorized, features
 
 
 def tfidf_transformer(bow_matrix):
@@ -79,13 +113,13 @@ def tfidf_transformer(bow_matrix):
 
 
 def tfidf_extractor(corpus, ngram_range=(1, 1)):
-    vectorizer = TfidfVectorizer(min_df=1,
+    vectorized = TfidfVectorizer(min_df=1,
                                  norm='l2',
                                  smooth_idf=True,
                                  use_idf=True,
                                  ngram_range=ngram_range)
-    features = vectorizer.fit_transform(corpus)
-    return vectorizer, features
+    features = vectorized.fit_transform(corpus)
+    return vectorized, features
 
 
 def train_predict_evaluate_model(classifier,
@@ -109,26 +143,27 @@ def train_predict_evaluate_model(classifier,
     return accuracy, precision, recall, f1
 
 
-corpus, labels = load_email('mail.csv')
-
+print("加载邮件数据")
+corpus, labels = load_email(('mail1.csv', 'mail2.csv'))
+print("划分数据集")
 train_corpus, test_corpus, train_labels, test_labels = train_test_split(corpus, labels, test_size=0.3, random_state=0)
 # 进行归一化
+print("归一化训练集")
 norm_train_corpus = normalize_corpus(train_corpus)
+print("归一化测试集")
 norm_test_corpus = normalize_corpus(test_corpus)
 # 词袋模型特征
+print("向量化训练集")
 bow_vectorized, bow_train_features = bow_extractor(norm_train_corpus)
+print("向量化测试集")
 bow_test_features = bow_vectorized.transform(norm_test_corpus)
-
-# tfidf 特征
-tfidf_vectorized, tfidf_train_features = tfidf_extractor(norm_train_corpus)
-tfidf_test_features = tfidf_vectorized.transform(norm_test_corpus)
-
+print("加载模型")
 mnb = MultinomialNB()
 svm = SGDClassifier(loss='hinge', n_iter_no_change=100)
 lr = LogisticRegression()
-
 # 基于词袋模型的多项朴素贝叶斯
 print("基于词袋模型特征的贝叶斯分类器")
+# test2(bow_vectorized, bow_train_features, train_labels)
 mnb_bow_predictions = train_predict_evaluate_model(classifier=mnb,
                                                    train_features=bow_train_features,
                                                    train_labels=train_labels,
@@ -137,10 +172,13 @@ mnb_bow_predictions = train_predict_evaluate_model(classifier=mnb,
 print(mnb_bow_predictions)
 
 # 基于tfidf的多项式朴素贝叶斯模型
-print("基于tfidf的贝叶斯模型")
-mnb_tfidf_predictions = train_predict_evaluate_model(classifier=mnb,
-                                                     train_features=tfidf_train_features,
-                                                     train_labels=train_labels,
-                                                     test_features=tfidf_test_features,
-                                                     test_labels=test_labels)
-print(mnb_tfidf_predictions)
+# print("基于tfidf的贝叶斯模型")
+# tfidf 特征
+# tfidf_vectorized, tfidf_train_features = tfidf_extractor(norm_train_corpus)
+# tfidf_test_features = tfidf_vectorized.transform(norm_test_corpus)
+# mnb_tfidf_predictions = train_predict_evaluate_model(classifier=mnb,
+#                                                      train_features=tfidf_train_features,
+#                                                      train_labels=train_labels,
+#                                                      test_features=tfidf_test_features,
+#                                                      test_labels=test_labels)
+# print(mnb_tfidf_predictions)
