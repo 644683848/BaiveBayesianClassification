@@ -1,8 +1,10 @@
 import csv
+import pickle
 
 import numpy
 import numpy as np
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 
 def bow_extractor(corpus, ngram_range=(1, 1)):
@@ -41,40 +43,72 @@ def print_top_n_indices(arr, n, bow_vectorized):
             print(key)
 
 
-def test2(bow_vectorized: CountVectorizer, train_features, train_labels):
-    """
-    输入1: 训练样本矩阵
-    输入2: 训练样本标签
-    输出: 含有N个特征w_i时, 是垃圾邮件还是普通邮件
+def load_model(name):
+    with open(name + '.pickle', 'rb') as infile:
+        model = pickle.load(infile)
+        return model
 
-    目标: 计算在当前邮件所代表的特征w_i(12335维度中的a个维度中的特征)下, 此邮件为垃圾邮件的概率---P(c1|W_i), 此邮件为正常邮件的概率---P(c0|W_i)
-    1. 是垃圾邮件, 且有特征w_i的概率P(w_i, c1)
-      1. 计算P(c1), 即垃圾邮件的概率, 变量名为p_spam
-      2. 计算P(w_i|c1), 即垃圾邮件这个小样本中, 含有特征w_i的概率: w_i_given_c1_p
-    2. 计算含有特征W_i的小样本概率P(W_i): w_i_p
-      P(c1|W_i) = P(W_i, c1) / P(W_i) = P(W_i|c1) * P(c1) / P(W_i) = p(w_0|c1) * p(w_1|c1) * ... * p(w_43359|c1) / p(w_i)
-    """
+
+def train(train_features, train_labels):
     total_mails = train_features.shape[0]
     total_features = train_features.shape[1]
     spam_num = sum(train_labels)
     p_spam = spam_num / total_mails
-    w_i_given_c1_cnt = numpy.zeros(total_features)
-    w_i_given_c0_cnt = numpy.zeros(total_features)
+    w_i_given_c1_cnt = numpy.ones(total_features)
+    w_i_given_c0_cnt = numpy.ones(total_features)
+    c1_words_cnt = 2
+    c0_words_cnt = 2
     w_i_cnt = numpy.zeros(total_features)
     for i in range(total_mails):
         if train_labels[i] == 1:
             w_i_given_c1_cnt += train_features[i]
+            c1_words_cnt += np.sum(train_features[0])
         else:
             w_i_given_c0_cnt += train_features[i]
+            c0_words_cnt += np.sum(train_features[0])
         w_i_cnt += train_features[i]
-    print('最容易被判定为垃圾邮件的30个特征')
-    print_top_n_indices(w_i_given_c0_cnt, 30, bow_vectorized)
-    print('最容易被判定为非垃圾邮件的30个特征')
-    print_top_n_indices(w_i_given_c1_cnt, 30, bow_vectorized)
-    p_w_i_given_c1 = w_i_given_c1_cnt / spam_num
-    p_w_i_given_c0 = w_i_given_c0_cnt / total_features
-    p_w_i = w_i_cnt / total_mails
-    print(p_w_i, p_w_i_given_c1, p_w_i_given_c0)
+    p_w_i_given_c1 = w_i_given_c1_cnt / c1_words_cnt
+    p_w_i_given_c0 = w_i_given_c0_cnt / c0_words_cnt
+    return p_spam, p_w_i_given_c1, p_w_i_given_c0
 
+
+def test(bow_train_features, train_labels, bow_test_features, test_labels):
+    """
+    1. 从训练数据中获取:P(c1), P(w_i|c1);
+    2. 根据待判别向量, 计算P(w_i);
+    3. P(w_i) = P(w_1) * P(w_2) * ... * P(w_N)
+       log(P(w_i)) = log(P(w_1)) + log(P(w_2)) + ... + log(P(w_N)): log_p_w_i = sum(log_w_i)
+   4. log(P(w_i,c1)) = log(P(w_1|c1)) + log(P(w_2|c1)) + ... + log(P(w_N|c1)) + log(P(c1)): log_p_w_i_given_c1 = sum(log_p_w_i_given_c1)
+   5. log(P(c1|w_i)) = log(p(w_i, c1)) - log(p(w_i))
+
+   6. test_feature的
+        1. log(p(w_i)): sum(log(test_feature * p(w_i)))
+        2. log(p(w_i, c1))): sum(log(test_feature * p(w_i|c1) * p(c1)))
+        3. log(p(c1|w_i): log(p(w_i, c1)) - log(p(w_i))
+    """
+    # 加载训练数据
+    # bow_train_features = load_model('bow_train_features')
+    # train_labels = load_model('train_labels')
+    #
+    # bow_test_features = load_model('bow_test_features')
+    p_spam, p_w_i_given_c1, p_w_i_given_c0 = train(bow_train_features, train_labels)
+    # 计算log(p(w_i, c1))和log(p(w_i, c0)), 比较大小
+    # log(p(w_i, c1))
+    log_p_w_i_given_c1 = bow_test_features.A * np.log(p_w_i_given_c1).T + np.log(p_spam)
+    log_p_w_i_given_c0 = bow_test_features.A * np.log(p_w_i_given_c0).T + np.log(1 - p_spam)
+    predictions = np.asarray((log_p_w_i_given_c1 > log_p_w_i_given_c0).astype(int))
+    accuracy = accuracy_score(test_labels, predictions)
+    # Specify the zero_division parameter
+    precision = precision_score(test_labels, predictions, average='binary', zero_division=0)
+    recall = recall_score(test_labels, predictions, average='binary', zero_division=0)
+    f1 = f1_score(test_labels, predictions, average='binary', zero_division=0)
+    return accuracy, precision, recall, f1
+
+
+def test_train_function():
+    # Test 1: Basic functionality
+    train_features = np.array([[1, 1, 0, 0], [1, 0, 1, 0], [0, 1, 1, 0], [0, 0, 0, 1]])
+    train_labels = np.array([1, 0, 1, 0])
+    print(train(train_features, train_labels))
 
 

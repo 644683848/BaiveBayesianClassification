@@ -1,4 +1,5 @@
 import json
+import pickle
 import re
 
 import jieba
@@ -10,24 +11,13 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
 
-from test import test2
+from test import test
 
-size = 500
+size = 5000
 
 
 # 数据集来源: https://plg.uwaterloo.ca/~gvcormac/treccorpus06/about.html
-# def load_email(path):
-#     maildf = pd.read_csv(path, header=None,
-#                          names=['Sender', 'Receiver', 'CarbonCopy', 'Subject', 'Date', 'Body', 'isSpam'])
-#
-#     filteredmaildf = maildf[maildf['Body'].notnull()]
-#     corpus = filteredmaildf['Body']
-#     labels = filteredmaildf['isSpam']
-#
-#     corpus = list(corpus)[:size]
-#     labels = list(labels)[:size]
-#     return corpus, labels
-def load_email(paths, size=None):
+def load_email(paths):
     """
     Load email data from two CSV files and return a corpus of emails and their spam labels.
 
@@ -143,6 +133,18 @@ def train_predict_evaluate_model(classifier,
     return accuracy, precision, recall, f1
 
 
+def dump_model(model, name):
+    with open(name + '.pickle', 'wb') as outfile:
+        # "wb" argument opens the file in binary mode
+        pickle.dump(model, outfile)
+
+
+def load_model(name):
+    with open(name + '.pickle', 'rb') as infile:
+        model = pickle.load(infile)
+        return model
+
+
 print("加载邮件数据")
 corpus, labels = load_email(('mail1.csv', 'mail2.csv'))
 print("划分数据集")
@@ -157,19 +159,24 @@ print("向量化训练集")
 bow_vectorized, bow_train_features = bow_extractor(norm_train_corpus)
 print("向量化测试集")
 bow_test_features = bow_vectorized.transform(norm_test_corpus)
+dump_model(bow_train_features, 'bow_train_features')
+dump_model(train_labels, 'train_labels')
+dump_model(bow_test_features, 'bow_test_features')
+dump_model(test_labels, 'test_labels')
 print("加载模型")
 mnb = MultinomialNB()
 svm = SGDClassifier(loss='hinge', n_iter_no_change=100)
 lr = LogisticRegression()
 # 基于词袋模型的多项朴素贝叶斯
 print("基于词袋模型特征的贝叶斯分类器")
-# test2(bow_vectorized, bow_train_features, train_labels)
 mnb_bow_predictions = train_predict_evaluate_model(classifier=mnb,
                                                    train_features=bow_train_features,
                                                    train_labels=train_labels,
                                                    test_features=bow_test_features,
                                                    test_labels=test_labels)
 print(mnb_bow_predictions)
+print("自己写的基于词袋模型特征的贝叶斯分类器")
+print(test(bow_train_features, train_labels, bow_test_features, test_labels))
 
 # 基于tfidf的多项式朴素贝叶斯模型
 # print("基于tfidf的贝叶斯模型")
