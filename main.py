@@ -145,24 +145,20 @@ def load_model(name):
         return model
 
 
-print("加载邮件数据")
+# print("加载邮件数据")
 corpus, labels = load_email(('mail1.csv', 'mail2.csv'))
-print("划分数据集")
-train_corpus, test_corpus, train_labels, test_labels = train_test_split(corpus, labels, test_size=0.3, random_state=0)
-# 进行归一化
-print("归一化训练集")
-norm_train_corpus = normalize_corpus(train_corpus)
-print("归一化测试集")
-norm_test_corpus = normalize_corpus(test_corpus)
-# 词袋模型特征
-print("向量化训练集")
-bow_vectorized, bow_train_features = bow_extractor(norm_train_corpus)
-print("向量化测试集")
-bow_test_features = bow_vectorized.transform(norm_test_corpus)
-dump_model(bow_train_features, 'bow_train_features')
-dump_model(train_labels, 'train_labels')
-dump_model(bow_test_features, 'bow_test_features')
-dump_model(test_labels, 'test_labels')
+# print("归一化训练集")
+normalized_corpus = normalize_corpus(corpus)
+# print("向量化训练集")
+bow_vectorized, bow_features = bow_extractor(normalized_corpus)
+# print("划分数据集")
+bow_train_features, bow_test_features, train_labels, test_labels = train_test_split(bow_features, labels, test_size=0.3,
+                                                                                    random_state=0)
+
+# dump_model(bow_train_features, 'bow_train_features')
+# dump_model(train_labels, 'train_labels')
+# dump_model(bow_test_features, 'bow_test_features')
+# dump_model(test_labels, 'test_labels')
 print("加载模型")
 mnb = MultinomialNB()
 svm = SGDClassifier(loss='hinge', n_iter_no_change=100)
