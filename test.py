@@ -62,10 +62,10 @@ def train(train_features, train_labels):
     for i in range(total_mails):
         if train_labels[i] == 1:
             w_i_given_c1_cnt += train_features[i]
-            c1_words_cnt += np.sum(train_features[0])
+            c1_words_cnt += np.sum(train_features[i])
         else:
             w_i_given_c0_cnt += train_features[i]
-            c0_words_cnt += np.sum(train_features[0])
+            c0_words_cnt += np.sum(train_features[i])
         w_i_cnt += train_features[i]
     p_w_i_given_c1 = w_i_given_c1_cnt / c1_words_cnt
     p_w_i_given_c0 = w_i_given_c0_cnt / c0_words_cnt
