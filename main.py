@@ -162,7 +162,6 @@ bow_train_features, bow_test_features, train_labels, test_labels = train_test_sp
 print("加载模型")
 mnb = MultinomialNB()
 svm = SGDClassifier(loss='hinge', n_iter_no_change=100)
-lr = LogisticRegression()
 # 基于词袋模型的多项朴素贝叶斯
 print("基于词袋模型特征的贝叶斯分类器")
 mnb_bow_predictions = train_predict_evaluate_model(classifier=mnb,
